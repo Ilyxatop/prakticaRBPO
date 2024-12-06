@@ -22,4 +22,9 @@ public class ApplicationUser {
     private String password_hash;
     private String email;
     private ApplicationRole role;
+    public ApplicationUser(Long id, String login, String password_hash) {
+        this.id = id;
+        this.login = login;
+        this.password_hash = password_hash;
+    }
 }

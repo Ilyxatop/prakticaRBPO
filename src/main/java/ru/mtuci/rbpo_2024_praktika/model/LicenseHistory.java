@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
 import java.util.Date;
 
 @Entity
@@ -36,4 +37,20 @@ public class LicenseHistory {
 
     @Column(name = "description")
     private String description;
+
+    // Добавленный метод
+    public void setLicenseId(Long licenseId) {
+        if (this.license == null) {
+            this.license = new License();
+        }
+        this.license.setId(licenseId);
+    }
+
+    // Добавленный метод
+    public void setUserId(Long userId) {
+        if (this.user == null) {
+            this.user = new ApplicationUser();
+        }
+        this.user.setId(userId);
+    }
 }

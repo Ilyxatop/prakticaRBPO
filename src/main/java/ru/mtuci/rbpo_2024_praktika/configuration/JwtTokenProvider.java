@@ -34,9 +34,6 @@ public class JwtTokenProvider {
         return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
-    /**
-     * Создание JWT токена.
-     */
     public String createToken(String username, Set<GrantedAuthority> authorities) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
@@ -55,9 +52,6 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    /**
-     * Проверка на валидность токена.
-     */
     public boolean validateToken(String token) {
         try {
             Jwts.parserBuilder()
@@ -71,9 +65,6 @@ public class JwtTokenProvider {
         }
     }
 
-    /**
-     * Получение имени пользователя из токена.
-     */
     public String getUsername(String token) {
         Claims claims = Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
@@ -82,10 +73,6 @@ public class JwtTokenProvider {
                 .getBody();
         return claims.getSubject();
     }
-
-    /**
-     * Получение списка ролей (авторизаций) из токена.
-     */
 
     public Set<GrantedAuthority> getAuthorities(String token) {
         return ((Collection<?>) Jwts.parserBuilder()

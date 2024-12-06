@@ -5,7 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import java.util.Date;
+
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "license")
@@ -36,11 +37,11 @@ public class License {
 
     @Column(name = "first_activation_date")
     @Temporal(TemporalType.DATE)
-    private Date firstActivationDate;
+    private LocalDate firstActivationDate;
 
     @Column(name = "ending_date")
     @Temporal(TemporalType.DATE)
-    private Date endingDate;
+    private LocalDate endingDate;
 
     @Column(name = "blocked", nullable = false)
     private Boolean blocked;
@@ -57,4 +58,12 @@ public class License {
 
     @Column(name = "description")
     private String description;
+
+    @ManyToOne
+    @JoinColumn(name = "device_id", nullable = false)
+    private Device device;
+
+    public Long getOwnerId() {
+        return owner != null ? owner.getId() : null;
+    }
 }
