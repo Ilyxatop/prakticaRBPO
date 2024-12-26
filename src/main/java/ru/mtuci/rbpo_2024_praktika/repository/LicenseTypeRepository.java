@@ -6,5 +6,4 @@ import ru.mtuci.rbpo_2024_praktika.model.LicenseType;
 
 @Repository
 public interface LicenseTypeRepository extends JpaRepository<LicenseType, Long> {
-    // Добавьте кастомные методы, если нужно
 }

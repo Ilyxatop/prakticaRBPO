@@ -7,9 +7,7 @@ import ru.mtuci.rbpo_2024_praktika.model.ApplicationUser;
 import java.util.Optional;
 
 @Repository
-public interface UserRepository extends JpaRepository<ApplicationUser, Long> {
+public interface ApplicationUserRepository extends JpaRepository<ApplicationUser, Long> {
     Optional<ApplicationUser> findByEmail(String email);
-
-    Optional<ApplicationUser> findById(Long userId);
+    boolean existsByEmail(String email);
 }
-

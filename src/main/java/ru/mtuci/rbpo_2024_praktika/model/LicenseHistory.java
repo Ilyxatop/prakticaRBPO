@@ -38,7 +38,6 @@ public class LicenseHistory {
     @Column(name = "description")
     private String description;
 
-    // Добавленный метод
     public void setLicenseId(Long licenseId) {
         if (this.license == null) {
             this.license = new License();
@@ -46,7 +45,6 @@ public class LicenseHistory {
         this.license.setId(licenseId);
     }
 
-    // Добавленный метод
     public void setUserId(Long userId) {
         if (this.user == null) {
             this.user = new ApplicationUser();

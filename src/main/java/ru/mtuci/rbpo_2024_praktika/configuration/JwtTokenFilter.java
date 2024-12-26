@@ -25,12 +25,12 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
         String token = resolveToken(request);
 
-        if (token != null && jwtTokenProvider.validateToken(token)) { // Проверка валидности токена
-            String username = jwtTokenProvider.getUsername(token); // Получение имени пользователя из токена
+        if (token != null && jwtTokenProvider.validateToken(token)) {
+            String username = jwtTokenProvider.getUsername(token);
 
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-            // Создаем объект аутентификации и устанавливаем в SecurityContext
+
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(authentication);

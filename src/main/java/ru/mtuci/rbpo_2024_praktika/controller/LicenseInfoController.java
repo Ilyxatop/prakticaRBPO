@@ -22,38 +22,28 @@ public class LicenseInfoController {
     @PostMapping
     public ResponseEntity<?> getLicenseInfo(@RequestBody DeviceInfoRequest deviceInfo,
                                             @AuthenticationPrincipal ApplicationUser authenticatedUser) {
-        // Ищем устройство по информации
-        Device device = deviceService.findDeviceByInfo(deviceInfo, authenticatedUser);
+        try {
+            Device device = deviceService.findDeviceByInfo(deviceInfo, authenticatedUser);
 
-        if (device == null) {
-            return ResponseEntity.status(404).body("Устройство не найдено");
+            if (device == null) {
+                return ResponseEntity.status(404).body("Устройство не найдено");
+            }
+
+            List<License> activeLicenses = licenseService.getActiveLicensesForDevice(device, authenticatedUser);
+
+            if (activeLicenses.isEmpty()) {
+                return ResponseEntity.status(404).body("Нет активных лицензий для этого устройства");
+            }
+
+            List<Ticket> tickets = activeLicenses.stream()
+                    .map(license -> licenseService.generateTicket(license, device.getId().toString(), null))
+                    .collect(Collectors.toList());
+
+            return ResponseEntity.ok(tickets);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(400).body("Некорректные данные: " + ex.getMessage());
+        } catch (Exception ex) {
+            return ResponseEntity.status(500).body("Произошла ошибка: " + ex.getMessage());
         }
-
-        // Получаем активные лицензии
-        List<License> activeLicenses = licenseService.getActiveLicensesForDevice(device, authenticatedUser);
-
-        if (activeLicenses.isEmpty()) {
-            return ResponseEntity.status(404).body("Нет активных лицензий для этого устройства");
-        }
-
-        // Генерируем тикеты для всех активных лицензий
-        List<Ticket> tickets = activeLicenses.stream()
-                .map(license -> generateTicket(license, device))
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(tickets);
-    }
-
-    private Ticket generateTicket(License license, Device device) {
-        // Логика генерации тикета
-        return new Ticket(
-                30L, // Время жизни тикета в секундах
-                license.getFirstActivationDate(),
-                license.getEndingDate(),
-                license.getOwner().getId(),
-                device.getId(),
-                license.getBlocked(),
-                "Подпись" // Подпись тикета
-        );
     }
 }

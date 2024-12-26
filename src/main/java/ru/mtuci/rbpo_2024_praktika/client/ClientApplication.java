@@ -14,7 +14,7 @@ public class ClientApplication {
         this.licenseService = licenseService;
     }
 
-    public void requestLicenseRenewal(String username, String password, String licenseKey) {
+    /*public void requestLicenseRenewal(String username, String password, String licenseKey) {
         try {
             // Аутентификация пользователя
             var user = authenticationService.authenticate(username, password);
@@ -29,5 +29,5 @@ public class ClientApplication {
         } catch (Exception e) {
             System.err.println("Неизвестная ошибка: " + e.getMessage());
         }
-    }
+    }*/
 }

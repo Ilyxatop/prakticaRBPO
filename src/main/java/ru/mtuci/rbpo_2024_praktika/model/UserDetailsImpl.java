@@ -11,6 +11,7 @@ import java.util.Set;
 public class UserDetailsImpl implements UserDetails {
     private String username;
     private String password;
+    private String login;
     private Set<GrantedAuthority> authorities;
     private boolean isActive;
 

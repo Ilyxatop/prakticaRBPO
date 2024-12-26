@@ -38,14 +38,14 @@ public class JwtTokenProvider {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
 
-        // Преобразуем Set<GrantedAuthority> в Set<String>
+
         Set<String> authorityNames = authorities.stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toSet());
 
         return Jwts.builder()
                 .setSubject(username)
-                .claim("roles", authorityNames)  // добавляем роли в токен
+                .claim("roles", authorityNames)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
@@ -60,7 +60,6 @@ public class JwtTokenProvider {
                     .parseClaimsJws(token);
             return true;
         } catch (JwtException | IllegalArgumentException e) {
-            // Если возникает ошибка при парсинге или проверке токена, он недействителен
             return false;
         }
     }
@@ -72,22 +71,5 @@ public class JwtTokenProvider {
                 .parseClaimsJws(token)
                 .getBody();
         return claims.getSubject();
-    }
-
-    public Set<GrantedAuthority> getAuthorities(String token) {
-        return ((Collection<?>) Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .get("auth", Collection.class)).stream()
-                .map(authority -> new SimpleGrantedAuthority((String) authority))
-                .collect(Collectors.toSet());
-    }
-
-    public Authentication getAuthentication(String token) {
-        String username = getUsername(token);
-        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-        return new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
     }
 }

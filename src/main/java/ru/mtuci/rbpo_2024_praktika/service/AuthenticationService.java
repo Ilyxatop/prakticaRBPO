@@ -7,7 +7,6 @@ import ru.mtuci.rbpo_2024_praktika.model.ApplicationUser;
 public class AuthenticationService {
 
     public ApplicationUser authenticate(String username, String password) {
-        // Пример проверки учётных данных (здесь может быть доступ к базе данных)
         if ("user".equals(username) && "password".equals(password)) {
             return new ApplicationUser(1L, "user", "User Name");
         }

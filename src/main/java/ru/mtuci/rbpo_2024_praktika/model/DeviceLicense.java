@@ -21,11 +21,11 @@ public class DeviceLicense {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY) // Оптимизация загрузки
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "license_id", nullable = false)
     private License license;
 
-    @ManyToOne(fetch = FetchType.LAZY) // Оптимизация загрузки
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "device_id", nullable = false)
     private Device device;
 
@@ -34,15 +34,4 @@ public class DeviceLicense {
 
     @OneToMany(mappedBy = "deviceLicense", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Details> details;
-
-    // Дополнительные методы для удобства
-    public void addDetail(Details detail) {
-        details.add(detail);
-        detail.setDeviceLicense(this);
-    }
-
-    public void removeDetail(Details detail) {
-        details.remove(detail);
-        detail.setDeviceLicense(null);
-    }
 }

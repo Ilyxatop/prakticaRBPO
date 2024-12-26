@@ -20,7 +20,7 @@ public class License {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "code", nullable = false)
+    @Column(name = "code", nullable = false, unique = true)
     private String code;
 
     @ManyToOne
@@ -36,11 +36,9 @@ public class License {
     private LicenseType type;
 
     @Column(name = "first_activation_date")
-    @Temporal(TemporalType.DATE)
     private LocalDate firstActivationDate;
 
     @Column(name = "ending_date")
-    @Temporal(TemporalType.DATE)
     private LocalDate endingDate;
 
     @Column(name = "blocked", nullable = false)
@@ -59,9 +57,8 @@ public class License {
     @Column(name = "description")
     private String description;
 
-    @ManyToOne
-    @JoinColumn(name = "device_id", nullable = false)
-    private Device device;
+    @Column(name = "max_device_count", nullable = false)
+    private Integer maxDeviceCount;
 
     public Long getOwnerId() {
         return owner != null ? owner.getId() : null;

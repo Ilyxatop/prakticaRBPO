@@ -13,19 +13,28 @@ public class DeviceService {
 
     private final DeviceRepository deviceRepository;
 
-    public Device registerOrUpdateDevice(String deviceInfo, ApplicationUser user) {
-        // Находим устройство по идентификатору (например, MAC-адрес)
-        Device device = deviceRepository.findByMacAddress(deviceInfo)
-                .orElse(new Device());
+    public Device registerOrUpdateDevice(String macAddress, String deviceName, ApplicationUser user, boolean isAdmin) {
+        Device device = deviceRepository.findByMacAddress(macAddress).orElse(new Device());
 
-        // Обновляем информацию об устройстве
-        device.setName("User Device");
-        device.setMacAddress(deviceInfo);
+        if (device.getUserId() != null && !device.getUserId().equals(user.getId())) {
+            if (!isAdmin) {
+                throw new IllegalArgumentException("Устройство с MAC-адресом " + macAddress + " уже привязано к другому пользователю.");
+            }
+            return device;
+        }
+
+        device.setName(deviceName != null && !deviceName.trim().isEmpty() ? deviceName : "User Device");
+        device.setMacAddress(macAddress);
         device.setUserId(user.getId());
 
         return deviceRepository.save(device);
     }
+
     public Device findDeviceByInfo(DeviceInfoRequest deviceInfo, ApplicationUser user) {
         return deviceRepository.findByMacAddressAndUser(deviceInfo.getMacAddress(), user).orElse(null);
+    }
+
+    public Device getDeviceById(Long id) {
+        return deviceRepository.findById(id).orElse(null);
     }
 }

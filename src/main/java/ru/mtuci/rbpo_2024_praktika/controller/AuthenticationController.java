@@ -46,12 +46,12 @@ public class AuthenticationController {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Email is already taken");
         }
 
-        ApplicationUser newUser = new ApplicationUser();
-        newUser.setEmail(registrationRequest.getEmail());
-        newUser.setPassword_hash(passwordEncoder.encode(registrationRequest.getPassword()));
-        newUser.setRole(registrationRequest.getRole());
-
-        userRepository.save(newUser);
-        return ResponseEntity.status(HttpStatus.CREATED).body("User registered successfully");
+        ApplicationUser  newUser  = new ApplicationUser ();
+        newUser .setLogin(registrationRequest.getLogin());
+        newUser .setEmail(registrationRequest.getEmail());
+        newUser .setPassword_hash(passwordEncoder.encode(registrationRequest.getPassword()));
+        newUser .setRole(registrationRequest.getRole());
+        userRepository.save(newUser );
+        return ResponseEntity.status(HttpStatus.CREATED).body("User  registered successfully");
     }
 }

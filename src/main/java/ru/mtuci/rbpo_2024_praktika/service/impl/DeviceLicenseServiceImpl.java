@@ -3,9 +3,7 @@ package ru.mtuci.rbpo_2024_praktika.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.mtuci.rbpo_2024_praktika.model.DeviceLicense;
-import ru.mtuci.rbpo_2024_praktika.model.Details;
 import ru.mtuci.rbpo_2024_praktika.repository.DeviceLicenseRepository;
-import ru.mtuci.rbpo_2024_praktika.repository.DetailsRepository;
 import ru.mtuci.rbpo_2024_praktika.service.DeviceLicenseService;
 
 import java.util.List;
@@ -15,14 +13,9 @@ import java.util.List;
 public class DeviceLicenseServiceImpl implements DeviceLicenseService {
 
     private final DeviceLicenseRepository deviceLicenseRepository;
-    private final DetailsRepository detailsRepository;
 
     @Override
     public void save(DeviceLicense deviceLicense) {
-        deviceLicense.getDetails().forEach(details -> {
-            details.setDeviceLicense(deviceLicense);
-            detailsRepository.save(details);
-        });
         deviceLicenseRepository.save(deviceLicense);
     }
 
@@ -33,6 +26,31 @@ public class DeviceLicenseServiceImpl implements DeviceLicenseService {
 
     @Override
     public DeviceLicense findById(long id) {
-        return deviceLicenseRepository.findById(id).orElse(new DeviceLicense());
+        return deviceLicenseRepository.findById(id).orElse(null);
+    }
+
+    @Override
+    public boolean update(long id, DeviceLicense updatedDeviceLicense) {
+        if (deviceLicenseRepository.existsById(id)) {
+            DeviceLicense existingDeviceLicense = deviceLicenseRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("DeviceLicense not found with id: " + id));
+            existingDeviceLicense.setLicense(updatedDeviceLicense.getLicense());
+            existingDeviceLicense.setDevice(updatedDeviceLicense.getDevice());
+            existingDeviceLicense.setActivationDate(updatedDeviceLicense.getActivationDate());
+            existingDeviceLicense.setDetails(updatedDeviceLicense.getDetails());
+            deviceLicenseRepository.save(existingDeviceLicense);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean delete(long id) {
+        if (deviceLicenseRepository.existsById(id)) {
+            deviceLicenseRepository.deleteById(id);
+            return true;
+        }
+        return false;
     }
 }

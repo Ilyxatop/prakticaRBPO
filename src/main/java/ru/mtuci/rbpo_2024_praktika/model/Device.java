@@ -28,11 +28,14 @@ public class Device {
     @JoinColumn(name = "user_id", nullable = false)
     private ApplicationUser user;
 
-    // Добавленный метод
     public void setUserId(Long userId) {
         if (this.user == null) {
             this.user = new ApplicationUser();
         }
         this.user.setId(userId);
+    }
+
+    public Long getUserId() {
+        return this.user != null ? this.user.getId() : null;
     }
 }

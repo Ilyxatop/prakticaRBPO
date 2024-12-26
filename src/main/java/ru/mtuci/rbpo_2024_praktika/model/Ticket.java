@@ -4,47 +4,110 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.nio.charset.StandardCharsets;
+import java.security.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Base64;
 
 @Getter
 @Setter
 @AllArgsConstructor
 public class Ticket {
 
-    // Текущая дата сервера
     private LocalDateTime serverDate;
-
-    // Время жизни тикета в секундах
     private Long ticketLifetime;
-
-    // Дата активации лицензии
     private LocalDate activationDate;
-
-    // Дата истечения лицензии
     private LocalDate expirationDate;
-
-    // Идентификатор пользователя
     private Long userId;
-
-    // Идентификатор устройства
-    private Long deviceId;
-
-    // Флаг блокировки лицензии
+    private String deviceId;
     private boolean isLicenseBlocked;
-
-    // Цифровая подпись
     private String digitalSignature;
 
-    // Конструктор, который может быть полезен для генерации тикета с текущей датой сервера
-    public Ticket(Long ticketLifetime, LocalDate activationDate, LocalDate expirationDate, Long userId, Long deviceId, boolean isLicenseBlocked, String digitalSignature) {
-        this.serverDate = LocalDateTime.now(); // Текущая дата сервера
+    private static final String ALGORITHM = "SHA256withRSA";
+
+    public Ticket(Long ticketLifetime, LocalDate activationDate, LocalDate expirationDate, Long userId, String deviceIds, boolean isLicenseBlocked) {
+        this.serverDate = LocalDateTime.now();
         this.ticketLifetime = ticketLifetime;
         this.activationDate = activationDate;
         this.expirationDate = expirationDate;
         this.userId = userId;
-        this.deviceId = deviceId;
+        this.deviceId = deviceIds;
         this.isLicenseBlocked = isLicenseBlocked;
-        this.digitalSignature = digitalSignature;
+        this.digitalSignature = generateDigitalSignature();
+    }
+
+    private String generateDigitalSignature() {
+        try {
+            String data = String.format(
+                    "serverDate:%s|ticketLifetime:%s|activationDate:%s|expirationDate:%s|userId:%s|deviceId:%s|isLicenseBlocked:%s",
+                    serverDate, ticketLifetime, activationDate, expirationDate, userId, deviceId, isLicenseBlocked
+            );
+
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data.getBytes(StandardCharsets.UTF_8));
+
+            PrivateKey privateKey = KeyLoader.loadPrivateKey();
+
+            Signature signature = Signature.getInstance(ALGORITHM);
+            signature.initSign(privateKey);
+            signature.update(hash);
+
+            byte[] signedData = signature.sign();
+
+            return Base64.getEncoder().encodeToString(signedData);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Ошибка при создании цифровой подписи", e);
+        }
+    }
+
+    public void updateDigitalSignature(PrivateKey privateKey) {
+        try {
+            String data = String.format(
+                    "serverDate:%s|ticketLifetime:%s|activationDate:%s|expirationDate:%s|userId:%s|deviceId:%s|isLicenseBlocked:%s",
+                    serverDate, ticketLifetime, activationDate, expirationDate, userId, deviceId, isLicenseBlocked
+            );
+
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data.getBytes(StandardCharsets.UTF_8));
+
+            Signature signature = Signature.getInstance("SHA256withRSA");
+            signature.initSign(privateKey);
+            signature.update(hash);
+
+            byte[] signedData = signature.sign();
+
+            this.digitalSignature = Base64.getEncoder().encodeToString(signedData);
+
+        } catch (NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
+            System.err.println("Ошибка при обновлении цифровой подписи: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Ошибка при обновлении цифровой подписи", e);
+        }
+    }
+
+
+    public boolean verifyDigitalSignature() {
+        try {
+            String data = String.format(
+                    "serverDate:%s|ticketLifetime:%s|activationDate:%s|expirationDate:%s|userId:%s|deviceId:%s|isLicenseBlocked:%s",
+                    serverDate, ticketLifetime, activationDate, expirationDate, userId, deviceId, isLicenseBlocked
+            );
+
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data.getBytes(StandardCharsets.UTF_8));
+
+            PublicKey publicKey = KeyLoader.loadPublicKey();
+
+            Signature signature = Signature.getInstance(ALGORITHM);
+            signature.initVerify(publicKey);
+            signature.update(hash);
+
+            return signature.verify(Base64.getDecoder().decode(this.digitalSignature));
+
+        } catch (Exception e) {
+            throw new RuntimeException("Ошибка проверки цифровой подписи", e);
+        }
     }
 }
