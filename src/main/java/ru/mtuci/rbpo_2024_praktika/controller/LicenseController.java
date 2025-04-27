@@ -3,8 +3,6 @@ package ru.mtuci.rbpo_2024_praktika.controller;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.web.bind.annotation.*;
@@ -15,7 +13,6 @@ import ru.mtuci.rbpo_2024_praktika.service.LicenseService;
 import ru.mtuci.rbpo_2024_praktika.service.UserService;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/licenses")
@@ -42,6 +39,11 @@ public class LicenseController {
 
             List<License> licenses = licenseService.getLicensesByUser(user);
 
+            // Проверка подписи каждой лицензии
+            for (License license : licenses) {
+                licenseService.checkSignatureOrMarkCorrupted(license, user);
+            }
+
             return ResponseEntity.ok(licenses);
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
@@ -62,11 +64,12 @@ public class LicenseController {
 
         try {
             License createdLicense = licenseService.createLicense(
-                    licenseRequest.getProductId(),
-                    owner,
+                    licenseRequest.getCode(),
                     licenseRequest.getLicenseTypeId(),
-                    licenseRequest.getDescription(),
-                    licenseRequest.getDuration()
+                    owner.getId(),
+                    licenseRequest.getMaxDeviceCount(),
+                    licenseRequest.getDuration(),
+                    licenseRequest.getProductId()
             );
             return ResponseEntity.status(HttpStatus.CREATED).body(createdLicense);
         } catch (IllegalArgumentException e) {
@@ -128,131 +131,21 @@ public class LicenseController {
         }
     }
 
-    @PostMapping("/block/{licenseId}")
-    public ResponseEntity<?> blockLicense(@PathVariable Long licenseId, @RequestParam Long adminId) {
+    @DeleteMapping("/{licenseId}")
+    public ResponseEntity<?> deleteLicense(@PathVariable Long licenseId, @AuthenticationPrincipal User user) {
         try {
-            ApplicationUser admin = userService.getUserById(adminId)
-                    .orElseThrow(() -> new IllegalArgumentException("Администратор с ID " + adminId + " не найден"));
-
-
-            licenseService.blockLicense(licenseId, admin);
-            return ResponseEntity.ok().build();
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Произошла ошибка при блокировке лицензии: " + e.getMessage());
-        }
-    }
-    @GetMapping("/device/{deviceId}/active")
-    public ResponseEntity<?> getActiveLicensesByDevice(@PathVariable Long deviceId,
-                                                       @RequestParam Long userId) {
-        try {
-            // Проверка наличия устройства
-            Device device = deviceService.getDeviceById(deviceId);
-            if (device == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body("Устройство с ID " + deviceId + " не найдено");
+            ApplicationUser admin = applicationUserService.findByEmail(user.getUsername());
+            if (admin.getRole() != ApplicationRole.ADMIN) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only admins can delete licenses.");
             }
 
-            ApplicationUser user = userService.getUserById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("Пользователь с ID " + userId + " не найден"));
-
-            List<License> activeLicenses = licenseService.getActiveLicensesForDevice(device, user);
-
-            if (activeLicenses.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body("Активные лицензии для устройства с ID " + deviceId + " и пользователя с ID " + userId + " не найдены");
-            }
-
-            return ResponseEntity.ok(activeLicenses);
-
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
-        } catch (RuntimeException ex) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Произошла ошибка при получении активных лицензий: " + ex.getMessage());
-        }
-    }
-
-    @PostMapping("/update-ending-date/{licenseId}")
-    public ResponseEntity<?> updateLicenseEndingDate(@PathVariable Long licenseId,
-                                                     @RequestParam(required = false) Long userId) {
-        if (userId == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body("Параметр 'userId' обязателен для выполнения операции");
-        }
-
-        try {
-            License license = licenseService.findLicenseById(licenseId)
-                    .orElseThrow(() -> new IllegalArgumentException("Лицензия с ID " + licenseId + " не найдена"));
-
-            ApplicationUser user = userService.getUserById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("Пользователь с ID " + userId + " не найден"));
-
-            if (!license.getOwnerId().equals(user.getId())) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("Пользователь не является владельцем данной лицензии");
-            }
-
-            Ticket ticket = licenseService.updateOrRenewLicense(license.getCode(), user);
-            return ResponseEntity.ok(ticket);
-
+            licenseService.deleteLicense(licenseId, admin);
+            return ResponseEntity.ok("Лицензия успешно удалена.");
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
         } catch (Exception ex) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Произошла ошибка при обновлении лицензии: " + ex.getMessage());
+                    .body("Ошибка при удалении лицензии: " + ex.getMessage());
         }
-    }
-
-    @GetMapping("/{licenseId}/license-ticket")
-    public ResponseEntity<?> getLicenseTicketWithDevices(
-            @PathVariable Long licenseId,
-            @AuthenticationPrincipal User user,
-            Authentication authentication) {
-        try {
-            License license = licenseService.findLicenseById(licenseId)
-                    .orElseThrow(() -> new IllegalArgumentException("Лицензия с ID " + licenseId + " не найдена"));
-
-            if (!hasAccessToLicense(license, user, authentication)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("Вы не являетесь владельцем данной лицензии или не имеете прав для получения тикета.");
-            }
-
-            List<DeviceLicense> deviceLicenses = licenseService.getAllDeviceLicensesByLicenseId(licenseId);
-            if (deviceLicenses.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body("Связанных устройств для лицензии не найдено.");
-            }
-
-            String deviceIds = deviceLicenses.stream()
-                    .map(deviceLicense -> String.valueOf(deviceLicense.getDevice().getId()))
-                    .collect(Collectors.joining(","));
-
-            Ticket ticket = licenseService.generateTicket(
-                    license,
-                    deviceIds,
-                    "Тикет для лицензии с устройствами"
-            );
-
-            return ResponseEntity.ok(ticket);
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
-        } catch (Exception ex) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Произошла ошибка при получении информации о лицензии: " + ex.getMessage());
-        }
-    }
-
-    private boolean hasAccessToLicense(License license, User user, Authentication authentication) {
-        String roles = authentication.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.joining(","));
-        if (roles.contains("ADMIN")) {
-            return true;
-        }
-        ApplicationUser appUser = applicationUserService.findByEmail(user.getUsername());
-        return appUser != null && license.getOwnerId().equals(appUser.getId());
     }
 }

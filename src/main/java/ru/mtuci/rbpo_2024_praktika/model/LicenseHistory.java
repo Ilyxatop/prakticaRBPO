@@ -21,7 +21,7 @@ public class LicenseHistory {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "license_id", nullable = false)
+    @JoinColumn(name = "license_id", nullable = true)
     private License license;
 
     @ManyToOne

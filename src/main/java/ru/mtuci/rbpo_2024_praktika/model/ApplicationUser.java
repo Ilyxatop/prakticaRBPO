@@ -22,22 +22,22 @@ public class ApplicationUser implements UserDetails {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String login;
+    private String username;
     private String password_hash;
     private String email;
 
     @Enumerated(EnumType.STRING)
     private ApplicationRole role;
 
-    public ApplicationUser(Long id, String login, String password_hash) {
+    public ApplicationUser(Long id, String username, String password_hash) {
         this.id = id;
-        this.login = login;
+        this.username = username;
         this.password_hash = password_hash;
     }
 
     @Override
     public String getUsername() {
-        return this.login;
+        return this.username;
     }
 
     @Override

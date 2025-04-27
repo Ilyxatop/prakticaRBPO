@@ -7,8 +7,11 @@ import ru.mtuci.rbpo_2024_praktika.repository.DeviceLicenseRepository;
 import ru.mtuci.rbpo_2024_praktika.repository.LicenseRepository;
 import ru.mtuci.rbpo_2024_praktika.utils.ActivationCodeGenerator;
 
-import java.security.PrivateKey;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.Signature;
 import java.time.LocalDate;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -24,9 +27,15 @@ public class LicenseService {
     private final LicenseHistoryService licenseHistoryService;
     private final DeviceLicenseRepository deviceLicenseRepository;
 
+    private final KeyPair keyPair; // Пара ключей
+
     public Ticket activateLicense(String activationCode, Device device, ApplicationUser user) {
         License license = licenseRepository.findByCode(activationCode)
                 .orElseThrow(() -> new IllegalArgumentException("Лицензия не найдена"));
+
+        if (!verifyLicenseSignature(license)) {
+            throw new IllegalArgumentException("Цифровая подпись лицензии недействительна!");
+        }
 
         validateActivation(license, device, user);
         createDeviceLicense(license, device);
@@ -37,7 +46,6 @@ public class LicenseService {
 
         int deviceCount = deviceLicenseRepository.countByLicenseId(license.getId());
         int maxDeviceCount = license.getMaxDeviceCount();
-
         int remainingDevices = maxDeviceCount - 1;
 
         if (remainingDevices <= 0) {
@@ -45,7 +53,6 @@ public class LicenseService {
         }
 
         updateLicense(license, remainingDevices);
-
         license.setDeviceCount(deviceCount);
         license.setEndingDate(license.getFirstActivationDate().plusDays(license.getDuration()));
         license.setUser(user);
@@ -57,7 +64,11 @@ public class LicenseService {
 
         String deviceIds = getDeviceIdsForLicense(license);
         return generateTicket(license, deviceIds, null);
+    }
 
+    private void updateLicense(License license, int remainingDevices) {
+        license.setMaxDeviceCount(remainingDevices);
+        licenseRepository.save(license);
     }
 
     private String getDeviceIdsForLicense(License license) {
@@ -68,36 +79,19 @@ public class LicenseService {
                 .collect(Collectors.joining(","));
     }
 
-    public License createLicense(Long productId, ApplicationUser owner, Long licenseTypeId, String description, Integer duration) {
-        Product product = productService.getProductById(productId);
-        if (product == null) {
-            throw new IllegalArgumentException("Продукт не найден");
-        }
-        LicenseType licenseType = licenseTypeService.getLicenseTypeById(licenseTypeId);
-        if (licenseType == null) {
-            throw new IllegalArgumentException("Тип лицензии не найден");
+    public Ticket generateTicket(License license, String deviceIds, String reason) {
+        if (reason != null && !reason.isEmpty()) {
+            System.err.println("Причина: " + reason);
         }
 
-        License license = new License();
-        license.setCode(ActivationCodeGenerator.generateCode());
-        license.setOwner(owner);
-        license.setDeviceCount(0);
-        license.setMaxDeviceCount(10);
-        license.setProduct(product);
-        license.setType(licenseType);
-        license.setDescription(description);
-        license.setDuration(duration != null ? duration : licenseType.getDefaultDuration());
-        license.setBlocked(false);
-
-        licenseRepository.save(license);
-        licenseHistoryService.recordLicenseChange(license, owner, "Создана", "Лицензия успешно создана");
-
-        return license;
-    }
-
-    public void updateLicense(License license, int remainingDevices) {
-        license.setMaxDeviceCount(remainingDevices);
-        licenseRepository.save(license);
+        return new Ticket(
+                30L,
+                license.getFirstActivationDate(),
+                license.getEndingDate(),
+                license.getOwnerId(),
+                deviceIds,
+                license.getBlocked()
+        );
     }
 
     private void validateActivation(License license, Device device, ApplicationUser user) {
@@ -121,62 +115,6 @@ public class LicenseService {
         deviceLicense.setDevice(device);
         deviceLicense.setActivationDate(LocalDate.now());
         deviceLicenseRepository.save(deviceLicense);
-    }
-
-    public Ticket updateOrRenewLicense(String licenseKey, ApplicationUser user) {
-        License license = licenseRepository.findByCode(licenseKey)
-                .orElseThrow(() -> new IllegalArgumentException("Недействительный ключ лицензии"));
-
-        if (!license.getOwner().getId().equals(user.getId())) {
-            throw new IllegalArgumentException("Вы не являетесь владельцем данной лицензии");
-        }
-
-        if (license.getFirstActivationDate() == null) {
-            throw new IllegalArgumentException("Дата активации не установлена");
-        }
-
-        if (license.getBlocked() || license.getEndingDate().isBefore(LocalDate.now())) {
-            String deviceIds = getDeviceIdsForLicense(license);
-            return generateTicket(license, deviceIds, "Лицензия заблокирована или истекла");
-        }
-
-        if (license.getEndingDate() == null || license.getEndingDate().isBefore(LocalDate.now())) {
-            license.setEndingDate(license.getFirstActivationDate().plusDays(license.getDuration()));
-        } else {
-            license.setEndingDate(license.getEndingDate().plusDays(30));
-        }
-
-        licenseRepository.save(license);
-
-        String deviceIds = getDeviceIdsForLicense(license);
-        return generateTicket(license, deviceIds, null);
-    }
-
-    public Ticket generateTicket(License license, String deviceIds, String reason) {
-        if (reason != null && !reason.isEmpty()) {
-            System.err.println("Причина: " + reason);
-        }
-
-        Ticket ticket = new Ticket(
-                30L,
-                license.getFirstActivationDate(),
-                license.getEndingDate(),
-                license.getOwnerId(),
-                deviceIds,
-                license.getBlocked()
-        );
-
-        ticket.updateDigitalSignature(loadPrivateKey());
-
-        return ticket;
-    }
-
-    private PrivateKey loadPrivateKey() {
-        try {
-            return KeyLoader.loadPrivateKey();
-        } catch (Exception e) {
-            throw new RuntimeException("Ошибка при загрузке приватного ключа", e);
-        }
     }
 
     public List<DeviceLicense> getAllDeviceLicensesByLicenseId(Long licenseId) {
@@ -208,5 +146,115 @@ public class LicenseService {
         return deviceLicenseRepository.findDeviceLicenseByDevice(device).stream()
                 .map(DeviceLicense::getLicense)
                 .collect(Collectors.toList());
+    }
+
+    public License createLicense(String code, Long licenseTypeId, Long userId, int maxDeviceCount, int duration, Long productId) {
+        if (licenseRepository.findByCode(code).isPresent()) {
+            throw new IllegalArgumentException("Лицензия с таким кодом уже существует");
+        }
+
+        LicenseType licenseType = licenseTypeService.getLicenseTypeById(licenseTypeId);
+        if (licenseType == null) {
+            throw new IllegalArgumentException("Тип лицензии не найден");
+        }
+
+        ApplicationUser user = userService.getUserById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+
+        Product product = productService.getProductById(productId);
+        if (product == null) {
+            throw new IllegalArgumentException("Продукт не найден");
+        }
+
+        License license = new License();
+        license.setCode(code);
+        license.setType(licenseType);
+        license.setOwner(user);
+        license.setMaxDeviceCount(maxDeviceCount);
+        license.setDuration(duration);
+        license.setBlocked(false);
+        license.setFirstActivationDate(null);
+        license.setDeviceCount(0);
+        license.setEndingDate(null);
+        license.setProduct(product);  // Устанавливаем product
+
+        // Подписываем данные
+        String signature = signLicenseData(license);
+        license.setDigitalSignature(signature);
+
+        licenseRepository.save(license);
+        licenseHistoryService.recordLicenseChange(license, user, "Created", "Лицензия была создана");
+
+        return license;
+    }
+
+    private String signLicenseData(License license) {
+        try {
+            String data = license.getCode() + "|" + license.getMaxDeviceCount() + "|" + license.getDuration();
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data.getBytes(StandardCharsets.UTF_8));
+
+            Signature signature = Signature.getInstance("SHA256withRSA");
+            signature.initSign(keyPair.getPrivate());
+            signature.update(hash);
+            byte[] digitalSignature = signature.sign();
+
+            return Base64.getEncoder().encodeToString(digitalSignature);
+        } catch (Exception e) {
+            throw new RuntimeException("Ошибка при подписи лицензии", e);
+        }
+    }
+
+    private boolean verifyLicenseSignature(License license) {
+        try {
+            String data = license.getCode() + "|" + license.getMaxDeviceCount() + "|" + license.getDuration();
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data.getBytes(StandardCharsets.UTF_8));
+
+            byte[] signatureBytes = Base64.getDecoder().decode(license.getDigitalSignature());
+
+            Signature signature = Signature.getInstance("SHA256withRSA");
+            signature.initVerify(keyPair.getPublic());
+            signature.update(hash);
+            return signature.verify(signatureBytes);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public void updateStatusAndLog(License license, LicenseStatus newStatus, ApplicationUser actor, String changeType, String comment) {
+        License oldCopy = new License();
+        oldCopy.setCode(license.getCode());
+        oldCopy.setOwner(license.getOwner());
+        oldCopy.setType(license.getType());
+        oldCopy.setProduct(license.getProduct());
+        oldCopy.setBlocked(license.getBlocked());
+        oldCopy.setDuration(license.getDuration());
+        oldCopy.setMaxDeviceCount(license.getMaxDeviceCount());
+        oldCopy.setDeviceCount(license.getDeviceCount());
+        oldCopy.setEndingDate(license.getEndingDate());
+        oldCopy.setFirstActivationDate(license.getFirstActivationDate());
+        oldCopy.setDigitalSignature(license.getDigitalSignature());
+
+        licenseHistoryService.recordLicenseChange(oldCopy, actor, changeType, comment);
+        licenseRepository.save(license);
+    }
+    public void deleteLicense(Long licenseId, ApplicationUser admin) {
+        License license = licenseRepository.findById(licenseId)
+                .orElseThrow(() -> new IllegalArgumentException("Лицензия не найдена"));
+
+        updateStatusAndLog(license, LicenseStatus.DELETED, admin, "DELETE", "Лицензия была удалена администратором");
+    }
+    public void checkSignatureOrMarkCorrupted(License license, ApplicationUser user) {
+        if (!verifyLicenseSignature(license)) {
+            updateStatusAndLog(
+                    license,
+                    LicenseStatus.CORRUPTED,
+                    user,
+                    "CORRUPTED",
+                    "Подпись недействительна, присвоен статус CORRUPTED"
+            );
+            throw new IllegalArgumentException("Цифровая подпись лицензии недействительна!");
+        }
     }
 }

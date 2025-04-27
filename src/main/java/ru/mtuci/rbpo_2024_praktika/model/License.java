@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "license")
@@ -24,7 +25,7 @@ public class License {
     private String code;
 
     @ManyToOne
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id")
     private ApplicationUser user;
 
     @ManyToOne
@@ -59,6 +60,12 @@ public class License {
 
     @Column(name = "max_device_count", nullable = false)
     private Integer maxDeviceCount;
+
+    @Column(name = "digital_signature", columnDefinition = "TEXT")
+    private String digitalSignature;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
     public Long getOwnerId() {
         return owner != null ? owner.getId() : null;
